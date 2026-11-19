@@ -1,0 +1,239 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Completion {
+  date: String!
+  id: Int!
+  nominationType: String!
+  rpgAchievements: Boolean!
+  themeId: Int
+  title: String!
+  titleEu: String
+  titleJp: String
+  titleOther: String
+  titleUsa: String
+  titleWorld: String
+}
+
+type CurrentWinner {
+  creationDate: String!
+  developer: String
+  gameId: Int!
+  genres: [String!]
+  imgUrl: String
+  nominationCount: Int!
+  nominationType: String!
+  screenscraperId: Int
+  systems: [String!]
+  themeDescription: String
+  themeId: Int!
+  themeTitle: String!
+  timeToBeat: Int
+  title: String!
+  year: String
+  yearCategory: String!
+}
+
+type Game {
+  developer: String
+  genres: [String!]
+  id: Int!
+  igdbId: Int
+  imgUrl: String
+  screenscraperId: Int
+  systems: [String!]
+  timeToBeat: Int
+  title: String!
+  titleEu: String
+  titleJp: String
+  titleOther: String
+  titleUsa: String
+  titleWorld: String
+  year: String
+}
+
+type GameCompletionStat {
+  completions: Int!
+  title: String!
+}
+
+type GameNominationCompletionStat {
+  completions: Int!
+  nominationType: String!
+  themeId: Int
+  title: String!
+}
+
+type GameNominationCountStat {
+  title: String!
+  total: Int!
+}
+
+type GotyThemeDetail {
+  creationDate: String!
+  description: String
+  id: Int!
+  nominationCount: Int!
+  title: String!
+  winnerCount: Int!
+  winnerGameId: Int
+  winnerScreenscraperId: Int
+  winnerTitle: String
+}
+
+type GotyThemeYearSummary {
+  categoryTitles: [String!]!
+  creationDate: String!
+  themeCount: Int!
+  totalWinners: Int!
+  year: Int!
+}
+
+type Nomination {
+  description: String
+  gameId: Int
+  id: Int!
+  nominationType: String!
+  themeId: Int
+  userId: Int
+  winner: Boolean!
+}
+
+type NominationDetail {
+  date: String
+  gameDescription: String
+  gameId: Int
+  nominationType: String!
+  themeDescription: String
+  themeTitle: String
+  title: String
+  userName: String
+  winner: Boolean!
+}
+
+type Query {
+  avgNominationsBeforeWin: Float!
+  avgTimeToBeatByMonth: [ThemeTimeToBeatStat!]!
+  completionsByUserId(userId: Int!): [Completion!]!
+  completionsCountByGame: [GameNominationCompletionStat!]!
+  currentWinners: [CurrentWinner!]!
+  game(id: Int!): Game
+  gamesByNomination(nominationType: String!, winner: Boolean): [Game!]!
+  gotyThemesByYear: [GotyThemeYearSummary!]!
+  gotyThemesForYear(creationDate: String!): [GotyThemeDetail!]!
+  healthCheck: String!
+  longestMonthsByAvgTimeToBeat: [ThemeTimeToBeatStat!]!
+  mostCompletedGames(nominationType: String): [GameCompletionStat!]!
+  mostNominatedGames(losersOnly: Boolean = false): [GameNominationCountStat!]!
+  mostNominatedGamesByUser: [UserNominationCountStat!]!
+  newestCompletions(nominationType: String): [GameCompletionStat!]!
+  nominationCountByThemeByCategory: [ThemeCategoryCountStat!]!
+  nominationData: [NominationDetail!]!
+  nominationDataByGameId(gameId: Int!): [NominationDetail!]!
+  nominationDataByUserId(userId: Int!): [NominationDetail!]!
+  nominationSuccessPercentByUser: [UserNominationSuccessStat!]!
+  nominations(nominationType: String): [Nomination!]!
+  shortestMonthsByAvgTimeToBeat: [ThemeTimeToBeatStat!]!
+  themeDetailWithCategories(themeId: Int!): [ThemeDetailEntry!]!
+  themeWinners(themeId: Int!): [ThemeWinner!]!
+  themesWithStatus: [ThemeWithStatus!]!
+  topNominationWinsByUser: [UserWinStat!]!
+  totalNomsBeforeWinByGame: [GameNominationCountStat!]!
+  totalTimeToBeatByMonth: [ThemeTimeToBeatStat!]!
+  user(id: Int!): User
+}
+
+type ThemeCategoryCountStat {
+  category: String!
+  count: Int!
+  title: String!
+}
+
+type ThemeDetailEntry {
+  creationDate: String!
+  description: String
+  developer: String
+  gameId: Int!
+  gameTitle: String!
+  genres: [String!]
+  id: Int!
+  imgUrl: String
+  nominationDescription: String
+  nominationType: String
+  screenscraperId: Int
+  systems: [String!]
+  timeToBeat: Int
+  title: String
+  titleEu: String
+  titleJp: String
+  titleOther: String
+  titleUsa: String
+  titleWorld: String
+  userName: String
+  winner: Boolean!
+  year: String
+  yearCategory: String!
+}
+
+type ThemeTimeToBeatStat {
+  theme: String!
+  value: Float
+}
+
+type ThemeWinner {
+  developer: String
+  gameId: Int!
+  genres: [String!]
+  imgUrl: String
+  nominationDescription: String
+  screenscraperId: Int
+  systems: [String!]
+  timeToBeat: Int
+  title: String!
+  userName: String
+  year: String
+  yearCategory: String!
+}
+
+type ThemeWithStatus {
+  creationDate: String!
+  description: String
+  displayTitle: String
+  id: Int!
+  nominationCount: Int!
+  nominationType: String
+  status: String!
+  winnerCount: Int!
+}
+
+type User {
+  admin: Boolean!
+  currentPoints: Float
+  discordId: String
+  earnedPoints: Float
+  id: Int!
+  name: String!
+  premiumPoints: Float
+  redeemedPoints: Float
+}
+
+type UserNominationCountStat {
+  name: String!
+  nominations: Int!
+}
+
+type UserNominationSuccessStat {
+  earnedPoints: Float!
+  id: Int!
+  name: String!
+  nominations: Int!
+  rank: Int!
+  successRate: Int!
+  wins: Int!
+}
+
+type UserWinStat {
+  name: String!
+  wins: Int!
+}
