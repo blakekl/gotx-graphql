@@ -23,13 +23,7 @@ This service exposes read-only GraphQL queries for browsing games, users, nomina
 
 ## Environment Variables
 
-Configure your database and server settings via `.env` (or environment variables in your deployment environment):
-
-| Variable       | Description                   | Example                                                        |
-| -------------- | ----------------------------- | -------------------------------------------------------------- |
-| `DATABASE_URL` | PostgreSQL connection string  | `postgresql://read_only_user:password@localhost:5432/gotx_bot` |
-| `HOST`         | Bind host for the HTTP server | `0.0.0.0`                                                      |
-| `PORT`         | Port for the GraphQL server   | `4000`                                                         |
+Copy `.env.example` to `.env.local` and edit the fields to match your local database setup.
 
 > **Tip:** Because this API is read-only, connect with a dedicated read-only PostgreSQL role (`SELECT` privileges only) for defense in depth.
 
