@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
+import { PUBLICATION_CTES } from '../database/publication.sql.js';
 import { Nomination } from './dto/nomination.model.js';
 import { NominationDetail } from './dto/nomination-detail.model.js';
 
@@ -39,14 +40,16 @@ export class NominationsService {
     const hasType = Boolean(nominationType);
     const sql = hasType
       ? `
+          WITH ${PUBLICATION_CTES}
           SELECT id, nomination_type, description, winner, game_id, user_id, theme_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE nomination_type = $1
           ORDER BY id ASC;
         `
       : `
+          WITH ${PUBLICATION_CTES}
           SELECT id, nomination_type, description, winner, game_id, user_id, theme_id
-          FROM public.nominations
+          FROM published_nominations
           ORDER BY id ASC;
         `;
 
@@ -70,6 +73,7 @@ export class NominationsService {
     params: unknown[] = [],
   ): Promise<NominationDetail[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         COALESCE(
           g.title_world,
@@ -86,10 +90,10 @@ export class NominationsService {
         t.description AS theme_description,
         TO_CHAR(t.creation_date, 'YYYY-MM-DD') AS date,
         n.winner
-      FROM public.nominations n
+      FROM published_nominations n
       LEFT JOIN public.games g ON g.id = n.game_id
       LEFT JOIN public.users u ON u.id = n.user_id
-      LEFT JOIN public.themes t ON t.id = n.theme_id
+      LEFT JOIN published_themes t ON t.id = n.theme_id
       ${whereClause}
       ORDER BY t.creation_date DESC NULLS LAST, n.id DESC;
     `;

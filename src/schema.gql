@@ -208,14 +208,9 @@ type ThemeWithStatus {
 }
 
 type User {
-  admin: Boolean!
-  currentPoints: Float
-  discordId: String
   earnedPoints: Float
   id: Int!
   name: String!
-  premiumPoints: Float
-  redeemedPoints: Float
 }
 
 type UserNominationCountStat {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
+import { PUBLICATION_CTES } from '../database/publication.sql.js';
 import { Game } from './dto/game.model.js';
 
 interface GameRow {
@@ -83,7 +84,7 @@ export class GamesService {
       filterClause = `
         WHERE id IN (
           SELECT game_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE nomination_type = $1 AND winner = true AND game_id IS NOT NULL
         )
       `;
@@ -91,12 +92,12 @@ export class GamesService {
       filterClause = `
         WHERE id IN (
           SELECT game_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE nomination_type = $1 AND game_id IS NOT NULL
         )
         AND id NOT IN (
           SELECT game_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE nomination_type = $1 AND winner = true AND game_id IS NOT NULL
         )
       `;
@@ -104,13 +105,14 @@ export class GamesService {
       filterClause = `
         WHERE id IN (
           SELECT game_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE nomination_type = $1 AND game_id IS NOT NULL
         )
       `;
     }
 
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         *,
         COALESCE(

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
+import { PUBLICATION_CTES } from '../database/publication.sql.js';
 import { CurrentWinner } from './dto/current-winner.model.js';
 import {
   GotyThemeDetail,
@@ -36,33 +37,18 @@ export class ThemesService {
 
   async findThemesWithStatus(): Promise<ThemeWithStatus[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         t.id,
         t.nomination_type,
         TO_CHAR(t.creation_date, 'YYYY-MM-DD') AS creation_date,
         t.description,
-        CASE
-          WHEN EXISTS (
-            SELECT 1 FROM public.nominations n2
-            WHERE n2.theme_id = t.id AND n2.winner = true
-          ) THEN 'completed'
-          ELSE 'active'
-        END AS status,
-        CASE
-          WHEN NOT EXISTS (
-            SELECT 1 FROM public.nominations n2
-            WHERE n2.theme_id = t.id AND n2.winner = true
-          ) THEN NULL
-          ELSE t.title
-        END AS display_title,
+        'completed' AS status,
+        t.title AS display_title,
         COUNT(n.id)::int AS nomination_count,
         COUNT(CASE WHEN n.winner = true THEN 1 END)::int AS winner_count
-      FROM public.themes t
-      LEFT JOIN public.nominations n ON t.id = n.theme_id
-      WHERE EXISTS (
-        SELECT 1 FROM public.nominations n2
-        WHERE n2.theme_id = t.id AND n2.winner = true
-      )
+      FROM published_themes t
+      LEFT JOIN published_nominations n ON t.id = n.theme_id
       GROUP BY t.id, t.title, t.nomination_type, t.creation_date, t.description
       ORDER BY t.creation_date DESC, t.nomination_type;
     `;
@@ -83,6 +69,7 @@ export class ThemesService {
 
   async findCurrentWinners(): Promise<CurrentWinner[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         n.nomination_type,
         t.title AS theme_title,
@@ -99,15 +86,15 @@ export class ThemesService {
         g.img_url,
         g.time_to_beat,
         'Unknown' AS year_category,
-        (SELECT COUNT(*)::int FROM public.nominations n3 WHERE n3.theme_id = t.id) AS nomination_count
-      FROM public.nominations n
+        (SELECT COUNT(*)::int FROM published_nominations n3 WHERE n3.theme_id = t.id) AS nomination_count
+      FROM published_nominations n
       INNER JOIN public.games g ON g.id = n.game_id
-      INNER JOIN public.themes t ON t.id = n.theme_id
+      INNER JOIN published_themes t ON t.id = n.theme_id
       WHERE n.winner = true
         AND t.id IN (
           SELECT t2.id
-          FROM public.themes t2
-          INNER JOIN public.nominations n2 ON t2.id = n2.theme_id AND n2.winner = true
+          FROM published_themes t2
+          INNER JOIN published_nominations n2 ON t2.id = n2.theme_id AND n2.winner = true
           WHERE t2.nomination_type = t.nomination_type
           ORDER BY t2.creation_date DESC, t2.id DESC
           LIMIT 1
@@ -141,15 +128,10 @@ export class ThemesService {
     themeId: number,
   ): Promise<ThemeDetailEntry[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         t.id,
-        CASE
-          WHEN NOT EXISTS (
-            SELECT 1 FROM public.nominations n3
-            WHERE n3.theme_id = t.id AND n3.winner = true
-          ) THEN NULL
-          ELSE t.title
-        END AS title,
+        t.title,
         t.nomination_type,
         TO_CHAR(t.creation_date, 'YYYY-MM-DD') AS creation_date,
         t.description,
@@ -171,8 +153,8 @@ export class ThemesService {
         n.description AS nomination_description,
         u.name AS user_name,
         ${YEAR_CATEGORY_SQL} AS year_category
-      FROM public.themes t
-      INNER JOIN public.nominations n ON t.id = n.theme_id
+      FROM published_themes t
+      INNER JOIN published_nominations n ON t.id = n.theme_id
       INNER JOIN public.games g ON n.game_id = g.id
       LEFT JOIN public.users u ON n.user_id = u.id
       WHERE t.id = $1
@@ -210,6 +192,7 @@ export class ThemesService {
 
   async findThemeWinners(themeId: number): Promise<ThemeWinner[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         COALESCE(g.title_world, g.title_usa, g.title_eu, g.title_jp, g.title_other, 'Untitled') AS title,
         g.id AS game_id,
@@ -223,9 +206,9 @@ export class ThemesService {
         n.description AS nomination_description,
         u.name AS user_name,
         ${YEAR_CATEGORY_SQL} AS year_category
-      FROM public.nominations n
+      FROM published_nominations n
       INNER JOIN public.games g ON n.game_id = g.id
-      INNER JOIN public.themes t ON n.theme_id = t.id
+      INNER JOIN published_themes t ON n.theme_id = t.id
       LEFT JOIN public.users u ON n.user_id = u.id
       WHERE n.theme_id = $1
         AND n.winner = true
@@ -252,14 +235,15 @@ export class ThemesService {
 
   async findGotyThemesByYear(): Promise<GotyThemeYearSummary[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         TO_CHAR(t.creation_date, 'YYYY-MM-DD') AS creation_date,
         EXTRACT(YEAR FROM t.creation_date)::int AS year,
         COUNT(DISTINCT t.id)::int AS theme_count,
         COUNT(CASE WHEN n.winner = true THEN 1 END)::int AS total_winners,
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.title), NULL) AS category_titles
-      FROM public.themes t
-      LEFT JOIN public.nominations n ON t.id = n.theme_id
+      FROM published_themes t
+      LEFT JOIN published_nominations n ON t.id = n.theme_id
       WHERE t.nomination_type = 'goty'
       GROUP BY t.creation_date
       ORDER BY t.creation_date DESC;
@@ -280,6 +264,7 @@ export class ThemesService {
     creationDate: string,
   ): Promise<GotyThemeDetail[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         t.id,
         t.title,
@@ -290,8 +275,8 @@ export class ThemesService {
         MAX(COALESCE(g.title_world, g.title_usa, g.title_eu, g.title_jp, g.title_other)) AS winner_title,
         g.id AS winner_game_id,
         g.screenscraper_id AS winner_screenscraper_id
-      FROM public.themes t
-      LEFT JOIN public.nominations n ON t.id = n.theme_id
+      FROM published_themes t
+      LEFT JOIN published_nominations n ON t.id = n.theme_id
       LEFT JOIN public.games g ON n.game_id = g.id AND n.winner = true
       WHERE t.nomination_type = 'goty'
         AND t.creation_date = $1::date

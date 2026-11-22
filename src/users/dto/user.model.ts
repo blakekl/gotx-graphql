@@ -8,21 +8,6 @@ export class User {
   @Field()
   name!: string;
 
-  @Field({ nullable: true })
-  discordId?: string;
-
   @Field(() => Float, { nullable: true })
   earnedPoints?: number;
-
-  @Field(() => Float, { nullable: true })
-  currentPoints?: number;
-
-  @Field(() => Float, { nullable: true })
-  redeemedPoints?: number;
-
-  @Field(() => Float, { nullable: true })
-  premiumPoints?: number;
-
-  @Field(() => Boolean)
-  admin!: boolean;
 }
