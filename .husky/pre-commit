@@ -1,1 +1,2 @@
-npx lint-staged
+# Formatting is opt-in: run `npm run format` manually when needed.
+:

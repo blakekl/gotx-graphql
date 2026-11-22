@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
+import { PUBLICATION_CTES } from '../database/publication.sql.js';
 import { Completion } from './dto/completion.model.js';
 
 interface CompletionRow {
@@ -28,6 +29,7 @@ export class CompletionsService {
 
   async findByUserId(userId: number): Promise<Completion[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         c.id,
         COALESCE(
@@ -49,7 +51,7 @@ export class CompletionsService {
         c.rpg_achievements
       FROM public.completions c
       INNER JOIN public.users u ON u.id = c.user_id
-      INNER JOIN public.nominations n ON n.id = c.nomination_id
+      INNER JOIN published_nominations n ON n.id = c.nomination_id
       INNER JOIN public.games g ON g.id = n.game_id
       WHERE c.user_id = $1
       ORDER BY c.completed_at DESC;

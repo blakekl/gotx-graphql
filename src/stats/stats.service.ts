@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
+import { PUBLICATION_CTES } from '../database/publication.sql.js';
 import {
   GameCompletionStat,
   GameNominationCompletionStat,
@@ -44,11 +45,12 @@ export class StatsService {
     }
 
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         ${COALESCED_TITLE} AS title,
         COUNT(*)::int AS completions
       FROM public.games g
-      INNER JOIN public.nominations n ON n.game_id = g.id
+      INNER JOIN published_nominations n ON n.game_id = g.id
       INNER JOIN public.completions c ON c.nomination_id = n.id
       ${whereClause}
       GROUP BY g.id
@@ -72,13 +74,14 @@ export class StatsService {
     }
 
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         ${COALESCED_TITLE} AS title,
         COUNT(*)::int AS completions
       FROM public.completions c
-      INNER JOIN public.nominations n ON c.nomination_id = n.id
+      INNER JOIN published_nominations n ON c.nomination_id = n.id
       INNER JOIN public.games g ON n.game_id = g.id
-      INNER JOIN public.themes t ON n.theme_id = t.id
+      INNER JOIN published_themes t ON n.theme_id = t.id
       ${whereClause}
       GROUP BY n.id, g.id, t.creation_date
       ORDER BY t.creation_date DESC, title ASC;
@@ -93,14 +96,15 @@ export class StatsService {
 
   async findTotalNomsBeforeWinByGame(): Promise<GameNominationCountStat[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         ${COALESCED_TITLE} AS title,
         COUNT(*)::int AS total
-      FROM public.nominations n
+      FROM published_nominations n
       INNER JOIN public.games g ON n.game_id = g.id
       WHERE n.game_id IN (
         SELECT game_id
-        FROM public.nominations
+        FROM published_nominations
         WHERE winner = true AND nomination_type = 'gotm' AND game_id IS NOT NULL
       )
       GROUP BY g.id
@@ -116,13 +120,14 @@ export class StatsService {
 
   async findAvgNominationsBeforeWin(): Promise<number> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT COALESCE(AVG(total), 0)::float AS average
       FROM (
         SELECT COUNT(*) AS total
-        FROM public.nominations n
+        FROM published_nominations n
         WHERE n.game_id IN (
           SELECT game_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE winner = true AND nomination_type = 'gotm' AND game_id IS NOT NULL
         )
         GROUP BY n.game_id
@@ -135,10 +140,11 @@ export class StatsService {
 
   async findTopNominationWinsByUser(): Promise<UserWinStat[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         u.name,
         COUNT(*)::int AS wins
-      FROM public.nominations n
+      FROM published_nominations n
       INNER JOIN public.users u ON n.user_id = u.id
       WHERE n.nomination_type = 'gotm'
         AND n.winner = true
@@ -160,16 +166,17 @@ export class StatsService {
     const loserFilter = losersOnly
       ? `AND n.game_id NOT IN (
           SELECT game_id
-          FROM public.nominations
+          FROM published_nominations
           WHERE winner = true AND nomination_type = 'gotm' AND game_id IS NOT NULL
         )`
       : '';
 
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         ${COALESCED_TITLE} AS title,
         COUNT(*)::int AS total
-      FROM public.nominations n
+      FROM published_nominations n
       INNER JOIN public.games g ON n.game_id = g.id
       WHERE n.nomination_type = 'gotm'
         ${loserFilter}
@@ -196,12 +203,13 @@ export class StatsService {
     if (mode === 'shortest') orderBy = 'value ASC NULLS LAST';
 
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         TO_CHAR(t.creation_date, 'YYYY-MM-DD') || ' - ' || t.title AS theme,
         ${agg} AS value
       FROM public.games g
-      INNER JOIN public.nominations n ON g.id = n.game_id
-      INNER JOIN public.themes t ON t.id = n.theme_id
+      INNER JOIN published_nominations n ON g.id = n.game_id
+      INNER JOIN published_themes t ON t.id = n.theme_id
       WHERE n.winner = true
         AND n.nomination_type = 'gotm'
       GROUP BY t.id, t.creation_date, t.title
@@ -220,14 +228,15 @@ export class StatsService {
 
   async findMostNominatedGamesByUser(): Promise<UserNominationCountStat[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         u.name,
         COUNT(*)::int AS nominations
-      FROM public.nominations n
+      FROM published_nominations n
       INNER JOIN public.users u ON n.user_id = u.id
       WHERE n.game_id IN (
         SELECT game_id
-        FROM public.nominations
+        FROM published_nominations
         WHERE nomination_type = 'gotm' AND game_id IS NOT NULL
       )
       AND n.user_id > 1
@@ -244,13 +253,14 @@ export class StatsService {
 
   async findCompletionsCountByGame(): Promise<GameNominationCompletionStat[]> {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         ${COALESCED_TITLE} AS title,
         COUNT(*)::int AS completions,
         n.theme_id,
         n.nomination_type
       FROM public.completions c
-      INNER JOIN public.nominations n ON n.id = c.nomination_id
+      INNER JOIN published_nominations n ON n.id = c.nomination_id
       INNER JOIN public.games g ON n.game_id = g.id
       GROUP BY n.id, g.id, n.theme_id, n.nomination_type
       ORDER BY n.theme_id DESC NULLS LAST, completions DESC;
@@ -269,7 +279,7 @@ export class StatsService {
     UserNominationSuccessStat[]
   > {
     const sql = `
-      WITH aggregated AS (
+      WITH ${PUBLICATION_CTES}, aggregated AS (
         SELECT
           u.id,
           u.name,
@@ -283,7 +293,7 @@ export class StatsService {
           COUNT(n.id)::int AS nominations,
           COALESCE(SUM(CASE WHEN n.winner THEN 1 ELSE 0 END), 0)::int AS wins
         FROM public.users u
-        LEFT JOIN public.nominations n
+        LEFT JOIN published_nominations n
           ON u.id = n.user_id
           AND n.nomination_type = 'gotm'
         WHERE u.id > 1
@@ -312,6 +322,7 @@ export class StatsService {
     ThemeCategoryCountStat[]
   > {
     const sql = `
+      WITH ${PUBLICATION_CTES}
       SELECT
         t.title,
         CASE
@@ -322,11 +333,11 @@ export class StatsService {
           ELSE 'Unknown'
         END AS category,
         COUNT(*)::int AS count
-      FROM public.themes t
-      INNER JOIN public.nominations n ON t.id = n.theme_id
+      FROM published_themes t
+      INNER JOIN published_nominations n ON t.id = n.theme_id
       INNER JOIN public.games g ON n.game_id = g.id
       WHERE t.nomination_type = 'gotm'
-      GROUP BY t.id, t.title, category
+      GROUP BY t.id, t.title, t.creation_date, category
       ORDER BY t.creation_date DESC, category ASC;
     `;
 
