@@ -17,15 +17,9 @@ interface GameRow {
   genres: string[] | null;
   img_url: string | null;
   time_to_beat: number | null;
-  screenscraper_id: number | string | null;
-  igdb_id: number | string | null;
+  screenscraper_id: string | null;
+  igdb_id: string | null;
 }
-
-const toOptionalInt = (val: number | string | null): number | undefined => {
-  if (val === null || val === undefined) return undefined;
-  const parsed = typeof val === 'number' ? val : Number(val);
-  return Number.isNaN(parsed) ? undefined : parsed;
-};
 
 @Injectable()
 export class GamesService {
@@ -46,8 +40,8 @@ export class GamesService {
       genres: row.genres ?? undefined,
       imgUrl: row.img_url ?? undefined,
       timeToBeat: row.time_to_beat ?? undefined,
-      screenscraperId: toOptionalInt(row.screenscraper_id),
-      igdbId: toOptionalInt(row.igdb_id),
+      screenscraperId: row.screenscraper_id,
+      igdbId: row.igdb_id,
     };
   }
 

@@ -8,13 +8,27 @@ import { ThemesService } from '../src/themes/themes.service.js';
 import { StatsService } from '../src/stats/stats.service.js';
 
 // Raw driver-shaped rows isolate mapping only. SQL/publication correctness is
-// separately exercised against PostgreSQL in public-boundary and Fastify e2e.
+// separately exercised against PostgreSQL in the compiled Fastify e2e suite.
 const database = (rows: Record<string, unknown>[]) => {
   const query = vi.fn().mockResolvedValue({ rows });
   return { query, service: { query } as unknown as DatabaseService };
 };
 
 describe('service mapper contracts', () => {
+  it('preserves ordinary, zero and null external identifiers at the mapper boundary', async () => {
+    // Arrange
+    for (const value of ['123', '0', null]) {
+      const db = database([
+        { id: '5', screenscraper_id: value, igdb_id: value },
+      ]);
+      // Act
+      const game = await new GamesService(db.service).findById(5);
+      // Assert
+      expect(game?.screenscraperId).toBe(value);
+      expect(game?.igdbId).toBe(value);
+    }
+  });
+
   it('maps bigint strings, zero, null and arrays without losing external IDs', async () => {
     const db = database([
       {
@@ -31,8 +45,8 @@ describe('service mapper contracts', () => {
         genres: [],
         img_url: null,
         time_to_beat: 0,
-        screenscraper_id: '4294967297',
-        igdb_id: '4294967298',
+        screenscraper_id: '9007199254740993',
+        igdb_id: '9223372036854775807',
       },
     ]);
     expect(await new GamesService(db.service).findById(5)).toEqual({
@@ -49,8 +63,8 @@ describe('service mapper contracts', () => {
       genres: [],
       imgUrl: undefined,
       timeToBeat: 0,
-      screenscraperId: 4294967297,
-      igdbId: 4294967298,
+      screenscraperId: '9007199254740993',
+      igdbId: '9223372036854775807',
     });
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('WHERE id = $1'),
