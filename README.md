@@ -113,6 +113,16 @@ query ClubStats {
 }
 ```
 
+## Testing without production data
+
+Run `npm test`, `npm run lint`, `npm run test:e2e` and `npm run build`
+sequentially. SQL and Fastify tests create only an isolated, disposable synthetic
+PostgreSQL container; no `.env`, restored dump or running API is required.
+Docker and the pinned installed PostgreSQL image are prerequisites, and local
+tests never pull images. Do not overlap test suites sharing the owned container
+name. See [API contracts](docs/api-contracts.md) for isolation/cleanup details,
+the explicit 29-root inventory, scalar contracts and CI setup.
+
 ## Schema & Explorer Notes
 
 - Code-first GraphQL generates `src/schema.gql` automatically when the application starts.

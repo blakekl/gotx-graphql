@@ -21,4 +21,4 @@ async function bootstrap() {
   await app.listen(port, host);
   console.log(`🚀 GraphQL server running on http://localhost:4000/graphql`);
 }
-bootstrap();
+void bootstrap();

@@ -11,7 +11,7 @@ import { StatsService } from '../src/stats/stats.service.js';
 import { UsersService } from '../src/users/users.service.js';
 
 // No environment/production database fallback. Own exactly one disposable fixture DB.
-const container = 'gotx-01-synthetic';
+const container = 'gotx-02-synthetic';
 let owned = false;
 let pool: Pool;
 const programs = ['gotm', 'retro', 'rpg', 'goty', 'gotwoty'];
@@ -43,10 +43,10 @@ beforeAll(async () => {
       '-e',
       'POSTGRES_USER=gotx_test',
       '-e',
-      'POSTGRES_DB=gotx_boundary_test',
+      'POSTGRES_DB=gotx_contract_test',
       '-p',
       '127.0.0.1::5432',
-      'postgres:16-alpine',
+      'postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea',
     ],
     { stdio: 'pipe' },
   );
@@ -62,7 +62,8 @@ beforeAll(async () => {
     host: '127.0.0.1',
     port,
     user: 'gotx_test',
-    database: 'gotx_boundary_test',
+    database: 'gotx_contract_test',
+    password: '',
     max: 1,
     connectionTimeoutMillis: 2000,
     statement_timeout: 5000,

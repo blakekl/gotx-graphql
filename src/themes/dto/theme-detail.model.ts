@@ -1,4 +1,4 @@
-import { Field, Int, ObjectType } from '@nestjs/graphql';
+import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
 export class ThemeDetailEntry {
@@ -41,7 +41,7 @@ export class ThemeDetailEntry {
   @Field({ nullable: true })
   year?: string;
 
-  @Field(() => Int, { nullable: true })
+  @Field(() => Float, { nullable: true })
   screenscraperId?: number;
 
   @Field(() => [String], { nullable: true })

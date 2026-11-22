@@ -24,7 +24,7 @@ type CurrentWinner {
   imgUrl: String
   nominationCount: Int!
   nominationType: String!
-  screenscraperId: Int
+  screenscraperId: Float
   systems: [String!]
   themeDescription: String
   themeId: Int!
@@ -39,9 +39,9 @@ type Game {
   developer: String
   genres: [String!]
   id: Int!
-  igdbId: Int
+  igdbId: Float
   imgUrl: String
-  screenscraperId: Int
+  screenscraperId: Float
   systems: [String!]
   timeToBeat: Int
   title: String!
@@ -78,7 +78,7 @@ type GotyThemeDetail {
   title: String!
   winnerCount: Int!
   winnerGameId: Int
-  winnerScreenscraperId: Int
+  winnerScreenscraperId: Float
   winnerTitle: String
 }
 
@@ -161,7 +161,7 @@ type ThemeDetailEntry {
   imgUrl: String
   nominationDescription: String
   nominationType: String
-  screenscraperId: Int
+  screenscraperId: Float
   systems: [String!]
   timeToBeat: Int
   title: String
@@ -187,7 +187,7 @@ type ThemeWinner {
   genres: [String!]
   imgUrl: String
   nominationDescription: String
-  screenscraperId: Int
+  screenscraperId: Float
   systems: [String!]
   timeToBeat: Int
   title: String!
