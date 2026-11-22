@@ -1,0 +1,31 @@
+name: Synthetic API contracts
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # CI provisioning only. Tests always use --pull=never, no host data volumes,
+      # no DB secrets, and only an ephemeral loopback port on their owned DB.
+      - run: docker pull postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+      - run: npm test
+      - run: npm run lint
+      - run: npm run test:e2e
+      - run: npm run build
+      - name: Clean owned fixture DB even if a runner is interrupted
+        if: always()
+        shell: bash
+        run: |
+          if docker container inspect gotx-02-synthetic >/dev/null 2>&1; then
+            docker stop gotx-02-synthetic
+          fi

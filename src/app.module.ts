@@ -16,6 +16,8 @@ import { StatsModule } from './stats/stats.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // Contract tests supply isolated synthetic configuration, never local secrets.
+      ignoreEnvFile: process.env.NODE_ENV === 'test',
       envFilePath: process.env.NODE_ENV
         ? `.env.${process.env.NODE_ENV}`
         : '.env',

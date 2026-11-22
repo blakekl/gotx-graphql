@@ -1,4 +1,4 @@
-import { Field, Int, ObjectType } from '@nestjs/graphql';
+import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
 export class CurrentWinner {
@@ -23,7 +23,7 @@ export class CurrentWinner {
   @Field()
   title!: string;
 
-  @Field(() => Int, { nullable: true })
+  @Field(() => Float, { nullable: true })
   screenscraperId?: number;
 
   @Field({ nullable: true })

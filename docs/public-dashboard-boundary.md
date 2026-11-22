@@ -73,7 +73,7 @@ and local `postgres:16-alpine` image (authorized image `721873c34ceb`):
     npm run build
     ./node_modules/.bin/tsc --noEmit --incremental false -p tsconfig.json
 
-The SQL suite starts exactly one new `gotx-01-synthetic` container with
+The SQL suite now starts exactly one new `gotx-02-synthetic` container with
 `--pull=never --rm`, tmpfs PGDATA, test-only trust-auth user/database, and an ephemeral
 127.0.0.1 port obtained via `docker port`. It refuses host port 5432 and has no
 production/environment connection fallback or host volumes. It uses the real
@@ -95,8 +95,8 @@ checks the executable and checked-in SDL member allowlists, rejects forbidden
 field selections through GraphQL validation and asserts no mutations. Build
 output is ignored `dist/`; no test configuration/dependency changes are needed.
 
-Limitations: this is essential service/SQL and executable-schema proof, not the
-broader all-root HTTP/production/Postgres infrastructure scheduled for GOTX-02.
+GOTX-02 adds the broader all-root Fastify/Postgres contracts documented in
+[API contracts](api-contracts.md), pins the synthetic image by digest, and fixes
+the inherited `src/main.ts` floating promise narrowly with `void bootstrap()`.
 Independent code review, dependent behavioral verification, Fenrir acceptance
-and human merge/deployment approval remain separate gates. The inherited lint
-error at unchanged `src/main.ts:24` is not waived or fixed by this slice.
+and human merge/deployment approval remain separate gates.
