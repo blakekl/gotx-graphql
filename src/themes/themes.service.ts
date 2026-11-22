@@ -112,7 +112,7 @@ export class ThemesService {
       themeDescription: row.theme_description ?? undefined,
       gameId: Number(row.game_id),
       title: row.title ?? 'Untitled',
-      screenscraperId: toOptionalInt(row.screenscraper_id),
+      screenscraperId: row.screenscraper_id as string | null,
       year: row.year ?? undefined,
       systems: row.systems ?? undefined,
       developer: row.developer ?? undefined,
@@ -177,7 +177,7 @@ export class ThemesService {
       titleOther: row.title_other ?? undefined,
       gameId: Number(row.game_id),
       year: row.year ?? undefined,
-      screenscraperId: toOptionalInt(row.screenscraper_id),
+      screenscraperId: row.screenscraper_id as string | null,
       systems: row.systems ?? undefined,
       developer: row.developer ?? undefined,
       genres: row.genres ?? undefined,
@@ -221,7 +221,7 @@ export class ThemesService {
       title: row.title ?? 'Untitled',
       gameId: Number(row.game_id),
       year: row.year ?? undefined,
-      screenscraperId: toOptionalInt(row.screenscraper_id),
+      screenscraperId: row.screenscraper_id as string | null,
       systems: row.systems ?? undefined,
       developer: row.developer ?? undefined,
       genres: row.genres ?? undefined,
@@ -295,7 +295,7 @@ export class ThemesService {
       winnerCount: Number(row.winner_count ?? 0),
       winnerTitle: row.winner_title ?? undefined,
       winnerGameId: toOptionalInt(row.winner_game_id),
-      winnerScreenscraperId: toOptionalInt(row.winner_screenscraper_id),
+      winnerScreenscraperId: row.winner_screenscraper_id as string | null,
     }));
   }
 }

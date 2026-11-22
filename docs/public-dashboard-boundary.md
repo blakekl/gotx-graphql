@@ -64,39 +64,6 @@ schema evidence, not verification of production storage or credentials.
 
 ## Executable proof
 
-Run from this worktree with the already installed dependencies, Docker available,
-and local `postgres:16-alpine` image (authorized image `721873c34ceb`):
-
-    npm test -- test/public-boundary.spec.ts test/public-schema.spec.ts
-    npm test
-    npm run lint
-    npm run build
-    ./node_modules/.bin/tsc --noEmit --incremental false -p tsconfig.json
-
-The SQL suite now starts exactly one new `gotx-02-synthetic` container with
-`--pull=never --rm`, tmpfs PGDATA, test-only trust-auth user/database, and an ephemeral
-127.0.0.1 port obtained via `docker port`. It refuses host port 5432 and has no
-production/environment connection fallback or host volumes. It uses the real
-service SQL with `pg`, not mocks returning filtered rows. Cleanup ends the pool
-and stops only the container successfully created by the suite, even on failure.
-Do not run overlapping copies of the SQL suite (the owned name is fixed).
-
-Fixtures cross past/current/future dates with winner/no-winner for gotm, retro,
-rpg, goty and gotwoty; include public losers, mixed public/private relationships
-on one game, private-only games, orphan nominations, missing IDs, zero-public-
-nomination members, latest-theme tie breaks and multiple winners. Aggregate
-results are compared before/after removal of unpublished/orphan fixture data in
-a rolled-back transaction, with positive public-result assertions.
-
-The schema spec runs `npm run build` and `node test/public-schema.mjs` to use the
-real emitted decorator metadata. It builds all existing resolver schema types
-without starting an HTTP service, importing AppModule, or loading `.env`. It
-checks the executable and checked-in SDL member allowlists, rejects forbidden
-field selections through GraphQL validation and asserts no mutations. Build
-output is ignored `dist/`; no test configuration/dependency changes are needed.
-
-GOTX-02 adds the broader all-root Fastify/Postgres contracts documented in
-[API contracts](api-contracts.md), pins the synthetic image by digest, and fixes
-the inherited `src/main.ts` floating promise narrowly with `void bootstrap()`.
-Independent code review, dependent behavioral verification, Fenrir acceptance
-and human merge/deployment approval remain separate gates.
+The focused compiled Fastify/PostgreSQL suite in `test/api-contract.mjs` covers
+these boundaries, including direct-ID and aggregate bypasses. Setup and commands
+are maintained in [Testing the public API](api-contracts.md).

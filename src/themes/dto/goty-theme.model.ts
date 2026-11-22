@@ -1,4 +1,4 @@
-import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
+import { Field, ID, Int, ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
 export class GotyThemeYearSummary {
@@ -44,6 +44,6 @@ export class GotyThemeDetail {
   @Field(() => Int, { nullable: true })
   winnerGameId?: number;
 
-  @Field(() => Float, { nullable: true })
-  winnerScreenscraperId?: number;
+  @Field(() => ID, { nullable: true })
+  winnerScreenscraperId?: string | null;
 }

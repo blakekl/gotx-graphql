@@ -8,6 +8,8 @@ jobs:
   contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      API_TEST_RUN: contracts-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,6 +28,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if docker container inspect gotx-02-synthetic >/dev/null 2>&1; then
-            docker stop gotx-02-synthetic
-          fi
+          for id in $(docker ps -aq --filter "label=api-contract-run=$API_TEST_RUN"); do
+            docker stop "$id"
+          done
