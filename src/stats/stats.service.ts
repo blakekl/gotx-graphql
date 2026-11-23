@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import { PUBLICATION_CTES } from '../database/publication.sql.js';
+import { YEAR_CATEGORY_SQL } from '../themes/year-categories.js';
 import {
   GameCompletionStat,
   GameNominationCompletionStat,
@@ -285,11 +286,9 @@ export class StatsService {
           u.name,
           COALESCE(u.earned_points, 0)::float AS earned_points,
           COALESCE(
-            FLOOR(
-              100.0 * SUM(CASE WHEN n.winner THEN 1 ELSE 0 END) / NULLIF(COUNT(n.id), 0)
-            ),
+            100.0 * SUM(CASE WHEN n.winner THEN 1 ELSE 0 END) / NULLIF(COUNT(n.id), 0),
             0
-          )::int AS success_rate,
+          )::float AS success_rate,
           COUNT(n.id)::int AS nominations,
           COALESCE(SUM(CASE WHEN n.winner THEN 1 ELSE 0 END), 0)::int AS wins
         FROM public.users u
@@ -324,14 +323,9 @@ export class StatsService {
     const sql = `
       WITH ${PUBLICATION_CTES}
       SELECT
+        t.id AS theme_id,
         t.title,
-        CASE
-          WHEN g.year !~ '^\\d+$' THEN 'Unknown'
-          WHEN g.year::int < 1996 THEN 'pre-96'
-          WHEN g.year::int BETWEEN 1996 AND 1999 THEN '96-99'
-          WHEN g.year::int >= 2000 THEN '2k+'
-          ELSE 'Unknown'
-        END AS category,
+        ${YEAR_CATEGORY_SQL} AS category,
         COUNT(*)::int AS count
       FROM published_themes t
       INNER JOIN published_nominations n ON t.id = n.theme_id
@@ -343,6 +337,7 @@ export class StatsService {
 
     const result = await this.databaseService.query(sql);
     return result.rows.map((row) => ({
+      themeId: Number(row.theme_id),
       title: row.title,
       category: row.category,
       count: Number(row.count ?? 0),

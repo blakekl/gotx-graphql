@@ -12,7 +12,7 @@ This service exposes read-only GraphQL queries for browsing games, users, nomina
 - **Users (`src/users`)**: Lookup user profiles and point totals by ID (`user`).
 - **Nominations (`src/nominations`)**: Query raw nominations (`nominations`) and rich joined nomination details (`nominationData`, `nominationDataByGameId`, `nominationDataByUserId`).
 - **Completions (`src/completions`)**: Query completion history by user (`completionsByUserId`), including game titles, theme/nomination context, dates, and `rpgAchievements`.
-- **Themes (`src/themes`)**: Browse theme status (`themesWithStatus`), current category winners (`currentWinners`), full theme lineups (`themeDetailWithCategories`), theme winners (`themeWinners`), and GotY year summaries/breakdowns (`gotyThemesByYear`, `gotyThemesForYear`).
+- **Themes (`src/themes`)**: Browse theme status (`themesWithStatus`), current category winners (`currentWinners`), full theme lineups (`themeDetailWithCategories`), theme winners (`themeWinners`), ordered historical year-category definitions (`themeYearCategories`), and GotY date summaries/breakdowns (`gotyThemesByYear`, `gotyThemesForYear`).
 - **Stats (`src/stats`)**: Leaderboards, completion counts, nomination counts, win rates/ranks, era/category breakdowns, and time-to-beat aggregations.
 
 ## Prerequisites
@@ -120,7 +120,7 @@ sequentially. Fastify e2e tests create only an isolated, disposable synthetic
 PostgreSQL container; no `.env`, restored dump or running API is required.
 Docker and the pinned installed PostgreSQL image are prerequisites, and local
 tests never pull images. Each invocation owns a unique container.
-See [API contracts](docs/api-contracts.md) for setup, isolation and the external-ID contract.
+Use Node 22.18+ for the executable typed-operation examples. See [API contracts](docs/api-contracts.md) for setup, isolation and the external-ID contract, and [query parity](docs/query-parity.md) for all frontend export mappings, historical categories and safe argument/date contracts.
 
 ## Schema & Explorer Notes
 

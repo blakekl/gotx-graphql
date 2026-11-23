@@ -1,4 +1,5 @@
 import { Args, Int, Query, Resolver } from '@nestjs/graphql';
+import { PositiveIntPipe } from '../validation/query-arguments.js';
 import { User } from './dto/user.model.js';
 import { UsersService } from './users.service.js';
 
@@ -8,7 +9,7 @@ export class UsersResolver {
 
   @Query(() => User, { nullable: true, name: 'user' })
   async getUserById(
-    @Args('id', { type: () => Int }) id: number,
+    @Args('id', { type: () => Int }, PositiveIntPipe) id: number,
   ): Promise<User | null> {
     return this.usersService.findById(id);
   }
