@@ -1,4 +1,5 @@
 import { Args, Float, Query, Resolver } from '@nestjs/graphql';
+import { NominationTypePipe } from '../validation/query-arguments.js';
 import {
   GameCompletionStat,
   GameNominationCompletionStat,
@@ -17,7 +18,11 @@ export class StatsResolver {
 
   @Query(() => [GameCompletionStat], { name: 'mostCompletedGames' })
   async getMostCompletedGames(
-    @Args('nominationType', { type: () => String, nullable: true })
+    @Args(
+      'nominationType',
+      { type: () => String, nullable: true },
+      NominationTypePipe,
+    )
     nominationType?: string,
   ): Promise<GameCompletionStat[]> {
     return this.statsService.findMostCompletedGames(nominationType);
@@ -25,7 +30,11 @@ export class StatsResolver {
 
   @Query(() => [GameCompletionStat], { name: 'newestCompletions' })
   async getNewestCompletions(
-    @Args('nominationType', { type: () => String, nullable: true })
+    @Args(
+      'nominationType',
+      { type: () => String, nullable: true },
+      NominationTypePipe,
+    )
     nominationType?: string,
   ): Promise<GameCompletionStat[]> {
     return this.statsService.findNewestCompletions(nominationType);

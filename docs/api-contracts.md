@@ -1,6 +1,6 @@
 # Testing the public API
 
-Use Node 22+, installed project dependencies, Docker, and the locally installed image
+Use Node 22.18+, installed project dependencies, Docker, and the locally installed image
 `postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea`.
 No running API, `.env` or restored database is needed.
 
@@ -9,12 +9,22 @@ No running API, `.env` or restored database is needed.
     npm run test:e2e
     npm run build
     ./node_modules/.bin/tsc --noEmit --incremental false -p tsconfig.json
+    git diff --check
 
 Unit tests isolate mapper behavior. The e2e command builds once, then uses Node's
 built-in test runner for focused tests of the compiled AppModule, Fastify HTTP
 injection, GraphQL and real PostgreSQL. Run a focused scenario after building:
 
     node --test --test-name-pattern='external identifiers' test/api-contract.mjs
+
+Category, validation and typed consumer scenarios can be selected with
+`--test-name-pattern='categories|category|invalid internal|fractional success|typed consumer'`.
+The complete export/argument/DTO inventory and deliberate normalized-schema
+adaptations live in [query parity](query-parity.md). `test/public-operations.ts`
+contains executable variable-based frontend operation examples (no client library):
+the normal typecheck checks their types, and the HTTP suite executes them using
+Node's built-in erasable TypeScript support. A consumer transport must reject
+GraphQL errors before returning typed data; these are not generated client types.
 
 The suite owns one uniquely named disposable database; tests run serially and
 commit a TRUNCATE before each scenario so the app's separate pool sees the reset.

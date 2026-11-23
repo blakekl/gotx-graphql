@@ -75,13 +75,14 @@ export class NominationsService {
     const sql = `
       WITH ${PUBLICATION_CTES}
       SELECT
-        COALESCE(
+        CASE WHEN g.id IS NOT NULL THEN COALESCE(
           g.title_world,
           g.title_usa,
           g.title_eu,
           g.title_jp,
-          g.title_other
-        ) AS title,
+          g.title_other,
+          'Untitled'
+        ) END AS title,
         n.nomination_type,
         n.game_id,
         u.name AS user_name,

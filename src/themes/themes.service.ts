@@ -9,6 +9,8 @@ import {
 import { ThemeDetailEntry } from './dto/theme-detail.model.js';
 import { ThemeWithStatus } from './dto/theme-status.model.js';
 import { ThemeWinner } from './dto/theme-winner.model.js';
+import { ThemeYearCategory } from './dto/theme-year-category.model.js';
+import { YEAR_CATEGORY_SQL, yearCategories } from './year-categories.js';
 
 const toOptionalInt = (
   val: number | string | null | undefined,
@@ -18,22 +20,17 @@ const toOptionalInt = (
   return Number.isNaN(parsed) ? undefined : parsed;
 };
 
-const YEAR_CATEGORY_SQL = `
-  CASE
-    WHEN g.year !~ '^\\d+$' THEN 'Unknown'
-    WHEN t.id < 235 AND g.year::int < 1996 THEN 'pre 96'
-    WHEN t.id < 235 AND g.year::int BETWEEN 1996 AND 1999 THEN '96-99'
-    WHEN t.id < 235 AND g.year::int >= 2000 THEN '2k+'
-    WHEN t.id >= 235 AND g.year::int < 1996 THEN 'pre 96'
-    WHEN t.id >= 235 AND g.year::int BETWEEN 1996 AND 2001 THEN '96-01'
-    WHEN t.id >= 235 AND g.year::int >= 2002 THEN '02+'
-    ELSE 'Unknown'
-  END
-`;
-
 @Injectable()
 export class ThemesService {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  async findThemeYearCategories(themeId: number): Promise<ThemeYearCategory[]> {
+    const result = await this.databaseService.query(
+      `WITH ${PUBLICATION_CTES} SELECT id FROM published_themes WHERE id = $1`,
+      [themeId],
+    );
+    return result.rows.length ? yearCategories(themeId) : [];
+  }
 
   async findThemesWithStatus(): Promise<ThemeWithStatus[]> {
     const sql = `
@@ -85,7 +82,7 @@ export class ThemesService {
         g.genres,
         g.img_url,
         g.time_to_beat,
-        'Unknown' AS year_category,
+        ${YEAR_CATEGORY_SQL} AS year_category,
         (SELECT COUNT(*)::int FROM published_nominations n3 WHERE n3.theme_id = t.id) AS nomination_count
       FROM published_nominations n
       INNER JOIN public.games g ON g.id = n.game_id
@@ -272,7 +269,7 @@ export class ThemesService {
         TO_CHAR(t.creation_date, 'YYYY-MM-DD') AS creation_date,
         COUNT(n.id)::int AS nomination_count,
         COUNT(CASE WHEN n.winner = true THEN 1 END)::int AS winner_count,
-        MAX(COALESCE(g.title_world, g.title_usa, g.title_eu, g.title_jp, g.title_other)) AS winner_title,
+        MAX(CASE WHEN g.id IS NOT NULL THEN COALESCE(g.title_world, g.title_usa, g.title_eu, g.title_jp, g.title_other, 'Untitled') END) AS winner_title,
         g.id AS winner_game_id,
         g.screenscraper_id AS winner_screenscraper_id
       FROM published_themes t

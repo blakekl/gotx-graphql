@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { before, beforeEach, after, describe, it } from 'node:test';
 import { GraphQLSchemaHost } from '@nestjs/graphql';
+import { loadTheme, categoryRows, loadDashboard } from './public-operations.ts';
 import { startTestContext, remainingContainer } from './synthetic-postgres.mjs';
 import {
   seedMembers,
@@ -151,10 +152,10 @@ const roots = {
     ],
   ],
   nominationCountByThemeByCategory: [
-    'nominationCountByThemeByCategory { title category count }',
+    'nominationCountByThemeByCategory { themeId title category count }',
     [
-      { title: 'Monthly theme', category: 'pre-96', count: 1 },
-      { title: 'Monthly theme', category: '2k+', count: 1 },
+      { themeId: 5, title: 'Monthly theme', category: 'pre 96', count: 1 },
+      { themeId: 5, title: 'Monthly theme', category: '2k+', count: 1 },
     ],
   ],
   nominationData: [
@@ -235,6 +236,15 @@ const roots = {
         screenscraperId: null,
         yearCategory: '2k+',
       },
+    ],
+  ],
+  themeYearCategories: [
+    'themeYearCategories(themeId:5) { key label minYear maxYear }',
+    [
+      { key: 'PRE_96', label: 'pre 96', minYear: null, maxYear: 1995 },
+      { key: 'MID', label: '96-99', minYear: 1996, maxYear: 1999 },
+      { key: 'RECENT', label: '2k+', minYear: 2000, maxYear: null },
+      { key: 'UNKNOWN', label: 'Unknown', minYear: null, maxYear: null },
     ],
   ],
   themeWinners: [
@@ -331,7 +341,7 @@ await describe('Fastify/PostgreSQL public API', { concurrency: false }, () => {
     const fields = schema.getQueryType().getFields();
     // Assert
     assert.deepEqual(Object.keys(fields).sort(), Object.keys(roots).sort());
-    assert.equal(Object.keys(fields).length, 29);
+
     assert.equal(schema.getMutationType(), undefined);
     assert.deepEqual(Object.keys(schema.getType('User').getFields()).sort(), [
       'earnedPoints',
@@ -348,6 +358,35 @@ await describe('Fastify/PostgreSQL public API', { concurrency: false }, () => {
     ])
       assert.equal(String(schema.getType(type).getFields()[field].type), 'ID');
     assert.equal(String(fields.game.args[0].type), 'Int!');
+    assert.equal(
+      String(fields.themeYearCategories.type),
+      '[ThemeYearCategory!]!',
+    );
+    assert.equal(String(fields.themeYearCategories.args[0].type), 'Int!');
+    assert.equal(
+      String(schema.getType('ThemeCategoryCountStat').getFields().themeId.type),
+      'Int!',
+    );
+    assert.equal(
+      String(
+        schema.getType('UserNominationSuccessStat').getFields().successRate
+          .type,
+      ),
+      'Float!',
+    );
+    assert.deepEqual(
+      Object.fromEntries(
+        Object.entries(schema.getType('ThemeYearCategory').getFields()).map(
+          ([name, field]) => [name, String(field.type)],
+        ),
+      ),
+      {
+        key: 'String!',
+        label: 'String!',
+        minYear: 'Int',
+        maxYear: 'Int',
+      },
+    );
     assert.equal(context.fastify.server.listening, false);
     assert.equal(context.app.getHttpAdapter().getType(), 'fastify');
   });
@@ -758,14 +797,503 @@ await describe('Fastify/PostgreSQL public API', { concurrency: false }, () => {
         'GRAPHQL_VALIDATION_FAILED',
       );
     }
-    assert.deepEqual(
-      (await query('nominations(nominationType:"gotm\u0027 OR 1=1 --") { id }'))
-        .nominations,
-      [],
-    );
+
     const ordered = (await query('mostCompletedGames { title completions }'))
       .mostCompletedGames;
     assert.deepEqual(ordered[0], { title: 'Shared game', completions: 2 });
+  });
+
+  void it('derives current winner categories rather than returning Unknown', async () => {
+    await seedPublicExample(context.pool);
+    const result = await query('currentWinners { yearCategory }');
+    assert.deepEqual(result.currentWinners, [
+      { yearCategory: 'pre 96' },
+      { yearCategory: 'pre 96' },
+    ]);
+  });
+
+  void it('handles overflowing year text without PostgreSQL cast failures', async () => {
+    await seedPublicExample(context.pool);
+    await context.pool.query(
+      "UPDATE games SET year='999999999999999999999' WHERE id=5",
+    );
+    const result = await query('themeWinners(themeId:5) { yearCategory }');
+    assert.deepEqual(result.themeWinners, [{ yearCategory: 'Unknown' }]);
+  });
+
+  void it('classifies historical and modern categories consistently, including unsafe year text', async () => {
+    // Arrange: same titles require theme IDs in chart rows; every game wins so
+    // all four classification paths can be compared on the identical fixture.
+    const years = [
+      '1995',
+      '1996',
+      '1999',
+      '2000',
+      '2001',
+      '2002',
+      null,
+      'unknown',
+      '19x6',
+      '999999999999999999999999',
+      '2147483648',
+    ];
+    await context.pool.query(`INSERT INTO themes VALUES
+      (234,'Same title',NULL,'2026-01-01','gotm'),
+      (235,'Same title',NULL,'2026-02-01','gotm')`);
+    for (const [index, year] of years.entries()) {
+      const gameId = index + 1;
+      await context.pool.query('INSERT INTO games(id,year) VALUES ($1,$2)', [
+        gameId,
+        year,
+      ]);
+      for (const themeId of [234, 235])
+        await context.pool.query(
+          "INSERT INTO nominations VALUES ($1,'gotm',NULL,true,$2,NULL,$3)",
+          [themeId * 100 + index, gameId, themeId],
+        );
+    }
+    for (const themeId of [234, 235]) {
+      // Act: promote each theme in turn without changing its historical ID.
+      await context.pool.query(
+        "UPDATE themes SET creation_date=CASE WHEN id=$1 THEN DATE '2026-03-01' ELSE DATE '2026-01-01' END",
+        [themeId],
+      );
+      const result =
+        await query(`themeDetailWithCategories(themeId:${themeId}) { gameId yearCategory }
+        themeWinners(themeId:${themeId}) { gameId yearCategory }
+        currentWinners { gameId yearCategory }
+        nominationCountByThemeByCategory { themeId category count }`);
+      // Assert
+      const labels =
+        themeId === 234
+          ? ['pre 96', '96-99', '96-99', '2k+', '2k+', '2k+']
+          : ['pre 96', '96-01', '96-01', '96-01', '96-01', '02+'];
+      const expected = years.map((_, index) => ({
+        gameId: index + 1,
+        yearCategory: labels[index] ?? 'Unknown',
+      }));
+      for (const field of [
+        'themeDetailWithCategories',
+        'themeWinners',
+        'currentWinners',
+      ])
+        assert.deepEqual(canonical(result[field]), canonical(expected), field);
+      const counts = Object.entries(
+        expected.reduce((acc, row) => {
+          acc[row.yearCategory] = (acc[row.yearCategory] ?? 0) + 1;
+          return acc;
+        }, {}),
+      ).map(([category, count]) => ({ themeId, category, count }));
+      assert.deepEqual(
+        canonical(
+          result.nominationCountByThemeByCategory.filter(
+            (row) => row.themeId === themeId,
+          ),
+        ),
+        canonical(counts),
+      );
+    }
+  });
+
+  void it('returns ordered public category definitions even for unoccupied buckets', async () => {
+    // Arrange
+    await seedPublicExample(context.pool);
+    await context.pool
+      .query(`INSERT INTO themes VALUES (234,'Old',NULL,'2026-01-01','gotm'),
+      (235,'New',NULL,'2026-01-01','gotm'), (236,'Private',NULL,'2000-01-01','gotm');
+      INSERT INTO nominations VALUES (2340,'gotm',NULL,true,5,NULL,234), (2350,'gotm',NULL,true,5,NULL,235);`);
+    for (const themeId of [234, 235, 236, 99999]) {
+      // Act
+      const rows = (
+        await query(
+          `themeYearCategories(themeId:${themeId}) { key label minYear maxYear }`,
+        )
+      ).themeYearCategories;
+      // Assert
+      assert.deepEqual(
+        rows,
+        themeId > 235
+          ? []
+          : [
+              { key: 'PRE_96', label: 'pre 96', minYear: null, maxYear: 1995 },
+              {
+                key: 'MID',
+                label: themeId < 235 ? '96-99' : '96-01',
+                minYear: 1996,
+                maxYear: themeId < 235 ? 1999 : 2001,
+              },
+              {
+                key: 'RECENT',
+                label: themeId < 235 ? '2k+' : '02+',
+                minYear: themeId < 235 ? 2000 : 2002,
+                maxYear: null,
+              },
+              {
+                key: 'UNKNOWN',
+                label: 'Unknown',
+                minYear: null,
+                maxYear: null,
+              },
+            ],
+      );
+    }
+  });
+
+  void it('retains fractional success percentages and points with a safe zero denominator', async () => {
+    // Arrange
+    await seedPublicExample(context.pool);
+    await context.pool.query(
+      "INSERT INTO nominations VALUES (80,'gotm',NULL,false,9000,2,5)",
+    );
+    // Act
+    const result = await query(
+      'user(id:2) { earnedPoints } nominationSuccessPercentByUser { id earnedPoints successRate nominations wins }',
+    );
+    // Assert
+    assert.equal(result.user.earnedPoints, 12.5);
+    const member = result.nominationSuccessPercentByUser.find(
+      (row) => row.id === 2,
+    );
+    assert.equal(member.earnedPoints, 12.5);
+    assert.equal(member.nominations, 3);
+    assert.equal(member.wins, 1);
+    assert.ok(Math.abs(member.successRate - 100 / 3) < 1e-12);
+    assert.equal(
+      result.nominationSuccessPercentByUser.find((row) => row.id === 3)
+        .successRate,
+      0,
+    );
+  });
+
+  void it('rejects invalid internal IDs, programs and calendar dates without SQL internals', async () => {
+    // Arrange
+    const invalid = [
+      ...[
+        'game(id:VALUE) { id }',
+        'user(id:VALUE) { id }',
+        'nominationDataByGameId(gameId:VALUE) { gameId }',
+        'nominationDataByUserId(userId:VALUE) { gameId }',
+        'completionsByUserId(userId:VALUE) { id }',
+        'themeDetailWithCategories(themeId:VALUE) { id }',
+        'themeWinners(themeId:VALUE) { gameId }',
+        'themeYearCategories(themeId:VALUE) { key }',
+      ].flatMap((selection) =>
+        [0, -1].map((value) => selection.replace('VALUE', String(value))),
+      ),
+      ...[
+        'gamesByNomination',
+        'nominations',
+        'mostCompletedGames',
+        'newestCompletions',
+      ].flatMap((field) =>
+        ['', 'other', "gotm' OR 1=1 --"].map(
+          (value) =>
+            `${field}(nominationType:${JSON.stringify(value)}) { ${field === 'nominations' || field === 'gamesByNomination' ? 'id' : 'title'} }`,
+        ),
+      ),
+      ...[
+        '2026-02-29',
+        '1900-02-29',
+        '2026-04-31',
+        '2026-13-01',
+        '2026-00-01',
+        '2026-01-00',
+        '0000-01-01',
+        '2026-1-01',
+        '2026-01-01T00:00:00Z',
+        "bad'::date",
+      ].map(
+        (date) =>
+          `gotyThemesForYear(creationDate:${JSON.stringify(date)}) { id }`,
+      ),
+    ];
+    const original = context.database.query.bind(context.database);
+    let databaseCalls = 0;
+    context.database.query = (...args) => {
+      databaseCalls++;
+      return original(...args);
+    };
+    try {
+      for (const selection of invalid) {
+        // Act
+        const result = await context.request(`{ ${selection} }`);
+        // Assert
+        assert.equal(
+          result.errors?.[0]?.extensions.code,
+          'BAD_USER_INPUT',
+          selection,
+        );
+        assert.doesNotMatch(
+          result.errors[0].message,
+          /SELECT|syntax|::|postgres|out of range/i,
+        );
+      }
+      assert.equal(
+        databaseCalls,
+        0,
+        'invalid arguments never reach PostgreSQL',
+      );
+    } finally {
+      context.database.query = original;
+    }
+    for (const date of ['2024-02-29', '2000-02-29', '0001-01-01', '9999-12-31'])
+      assert.deepEqual(
+        (await query(`gotyThemesForYear(creationDate:"${date}") { id }`))
+          .gotyThemesForYear,
+        [],
+      );
+    assert.deepEqual(
+      await query(`game(id:2147483647) { id } user(id:2147483647) { id }
+      nominationDataByGameId(gameId:2147483647) { gameId } nominationDataByUserId(userId:2147483647) { gameId }
+      completionsByUserId(userId:2147483647) { id } themeWinners(themeId:2147483647) { gameId }
+      themeDetailWithCategories(themeId:2147483647) { id } themeYearCategories(themeId:2147483647) { key }`),
+      {
+        game: null,
+        user: null,
+        nominationDataByGameId: [],
+        nominationDataByUserId: [],
+        completionsByUserId: [],
+        themeWinners: [],
+        themeDetailWithCategories: [],
+        themeYearCategories: [],
+      },
+    );
+  });
+
+  void it('uses regional title priority through every title projection, with Untitled for a titleless game', async () => {
+    // Arrange
+    await seedPublicExample(context.pool);
+    const columns = [
+      'title_world',
+      'title_usa',
+      'title_eu',
+      'title_jp',
+      'title_other',
+    ];
+    await context.pool.query(
+      `UPDATE games SET title_world='World',title_usa='USA',title_eu='EU',title_jp='JP',title_other='Other'`,
+    );
+    for (const [index, expected] of [
+      'World',
+      'USA',
+      'EU',
+      'JP',
+      'Other',
+      'Untitled',
+    ].entries()) {
+      if (index > 0)
+        await context.pool.query(`UPDATE games SET ${columns[index - 1]}=NULL`);
+      // Act
+      const result =
+        await query(`game(id:5) { title } gamesByNomination(nominationType:"gotm") { title }
+        currentWinners { title } themeWinners(themeId:5) { title }
+        themeDetailWithCategories(themeId:5) { gameTitle } nominationDataByGameId(gameId:5) { title }
+        completionsByUserId(userId:2) { title } mostCompletedGames { title }
+        gotyThemesForYear(creationDate:"2026-01-01") { winnerGameId winnerTitle }`);
+      // Assert
+      assert.equal(result.game.title, expected);
+      for (const field of [
+        'gamesByNomination',
+        'currentWinners',
+        'themeWinners',
+        'nominationDataByGameId',
+        'completionsByUserId',
+        'mostCompletedGames',
+      ])
+        assert.ok(
+          result[field].every((row) => row.title === expected),
+          field,
+        );
+      assert.ok(
+        result.themeDetailWithCategories.every(
+          (row) => row.gameTitle === expected,
+        ),
+      );
+      assert.equal(
+        result.gotyThemesForYear.find((row) => row.winnerGameId === 305)
+          .winnerTitle,
+        expected,
+      );
+      assert.equal(
+        result.gotyThemesForYear.find((row) => row.winnerGameId === null)
+          .winnerTitle,
+        null,
+      );
+    }
+  });
+
+  void it('executes typed consumer operations with variables, empty categories and exact identifiers', async () => {
+    // Arrange
+    await seedPublicExample(context.pool);
+    await context.pool.query(
+      'UPDATE games SET screenscraper_id=9007199254740993 WHERE id=5',
+    );
+    const send = async (document, variables) => {
+      const result = await context.request(document, variables);
+      assert.equal(result.status, 200);
+      assert.equal(result.errors, undefined, JSON.stringify(result.errors));
+      return result.data;
+    };
+    // Act
+    const view = await loadTheme(send, 5);
+    const dashboard = await loadDashboard(send, 'gotm', '2026-01-01');
+    // Assert
+    assert.deepEqual(categoryRows(view, 5), [
+      { key: 'PRE_96', label: 'pre 96', count: 1 },
+      { key: 'MID', label: '96-99', count: 0 },
+      { key: 'RECENT', label: '2k+', count: 1 },
+      { key: 'UNKNOWN', label: 'Unknown', count: 0 },
+    ]);
+    assert.equal(
+      view.themeDetailWithCategories.find((row) => row.gameId === 5)
+        .screenscraperId,
+      '9007199254740993',
+    );
+    assert.equal(
+      dashboard.gamesByNomination.find((row) => row.id === 5).screenscraperId,
+      '9007199254740993',
+    );
+    assert.equal(
+      dashboard.nominationSuccessPercentByUser.find((row) => row.id === 2)
+        .earnedPoints,
+      12.5,
+    );
+    assert.ok(
+      dashboard.gotyThemesForYear.every(
+        (row) => row.creationDate === '2026-01-01',
+      ),
+    );
+    assert.deepEqual(categoryRows(await loadTheme(send, 99999), 99999), []);
+  });
+
+  void it('preserves program-local runner-up exclusions and omitted optional filters', async () => {
+    // Arrange: a game wins GOTY, loses GOTM twice, then wins GOTM too.
+    await seedPublicExample(context.pool);
+    await context.pool.query(`INSERT INTO nominations VALUES
+      (80,'gotm',NULL,false,305,2,5),(81,'gotm',NULL,false,305,2,5)`);
+    // Act / Assert
+    assert.deepEqual(
+      ids(
+        (
+          await query(
+            'gamesByNomination(nominationType:"gotm",winner:false) { id }',
+          )
+        ).gamesByNomination,
+      ),
+      [305, 9000],
+    );
+    await context.pool.query(
+      "INSERT INTO nominations VALUES (82,'gotm',NULL,true,305,2,5)",
+    );
+    assert.deepEqual(
+      ids(
+        (
+          await query(
+            'gamesByNomination(nominationType:"gotm",winner:false) { id }',
+          )
+        ).gamesByNomination,
+      ),
+      [9000],
+    );
+    assert.deepEqual(
+      ids(
+        (await query('gamesByNomination(nominationType:"gotm") { id }'))
+          .gamesByNomination,
+      ),
+      [5, 305, 9000],
+    );
+    for (const [unfiltered, explicitNull] of [
+      ['nominations { id }', 'nominations(nominationType:null) { id }'],
+      [
+        'mostCompletedGames { title completions }',
+        'mostCompletedGames(nominationType:null) { title completions }',
+      ],
+      [
+        'newestCompletions { title completions }',
+        'newestCompletions(nominationType:null) { title completions }',
+      ],
+    ])
+      assert.deepEqual(
+        canonical(await query(unfiltered)),
+        canonical(await query(explicitNull)),
+      );
+  });
+
+  void it('preserves established sums, before-win eligibility and GOTY date/game groups', async () => {
+    // Arrange: GOTM has two winners (20+10), repeated losing nominations still
+    // count; cross-program nominations of a GOTM-winning game count before-win.
+    await seedPublicExample(context.pool);
+    await context.pool.query(`UPDATE nominations SET winner=true WHERE id=51;
+      INSERT INTO nominations VALUES (80,'gotm',NULL,false,5,2,5),
+      (81,'goty',NULL,true,9000,2,305), (82,'goty',NULL,false,5,2,305);
+      INSERT INTO themes VALUES (306,'Other award',NULL,'2026-01-01','goty'),
+        (307,'Other date',NULL,'2026-02-01','goty');
+      INSERT INTO nominations VALUES (3060,'goty',NULL,true,5,2,306),
+        (3070,'goty',NULL,true,305,2,307);`);
+    // Act
+    const result =
+      await query(`avgTimeToBeatByMonth { value } totalTimeToBeatByMonth { value }
+      longestMonthsByAvgTimeToBeat { value } shortestMonthsByAvgTimeToBeat { value }
+      totalNomsBeforeWinByGame { title total } avgNominationsBeforeWin
+      gotyThemesByYear { creationDate themeCount totalWinners }
+      gotyThemesForYear(creationDate:"2026-01-01") { id winnerGameId nominationCount winnerCount }`);
+    // Assert
+    assert.deepEqual(result.avgTimeToBeatByMonth, [{ value: 15 }]);
+    for (const field of [
+      'totalTimeToBeatByMonth',
+      'longestMonthsByAvgTimeToBeat',
+      'shortestMonthsByAvgTimeToBeat',
+    ])
+      assert.deepEqual(result[field], [{ value: 30 }]);
+    assert.deepEqual(
+      canonical(result.totalNomsBeforeWinByGame),
+      canonical([
+        { title: 'Monthly winner', total: 4 },
+        { title: 'Shared game', total: 3 },
+      ]),
+    );
+    assert.equal(result.avgNominationsBeforeWin, 3.5);
+    assert.deepEqual(result.gotyThemesByYear, [
+      { creationDate: '2026-02-01', themeCount: 1, totalWinners: 1 },
+      { creationDate: '2026-01-01', themeCount: 2, totalWinners: 3 },
+    ]);
+    // Existing GROUP BY theme and winner game preserves a null-game group for
+    // nonwinners, not a recomputed per-theme total on each winner row.
+    assert.deepEqual(
+      canonical(result.gotyThemesForYear),
+      canonical([
+        { id: 305, winnerGameId: 305, nominationCount: 1, winnerCount: 1 },
+        { id: 305, winnerGameId: 9000, nominationCount: 1, winnerCount: 1 },
+        { id: 305, winnerGameId: null, nominationCount: 2, winnerCount: 0 },
+        { id: 306, winnerGameId: 5, nominationCount: 1, winnerCount: 1 },
+      ]),
+    );
+  });
+
+  void it('preserves normalized arrays, year text, achievement aliases and calendar date projections', async () => {
+    // Arrange
+    await seedPublicExample(context.pool);
+    await context.pool
+      .query(`UPDATE games SET systems=ARRAY['SNES','PS'],genres=ARRAY['RPG'],year='2001' WHERE id=5;
+      UPDATE completions SET completed_at=TIMESTAMP '2024-02-29 23:59:59',rpg_achievements=true WHERE id=50;`);
+    // Act
+    const result = await query(`game(id:5) { year systems genres }
+      completionsByUserId(userId:2) { id date rpgAchievements }
+      themesWithStatus { creationDate } nominationData { date }`);
+    // Assert
+    assert.deepEqual(result.game, {
+      year: '2001',
+      systems: ['SNES', 'PS'],
+      genres: ['RPG'],
+    });
+    assert.deepEqual(
+      result.completionsByUserId.find((row) => row.id === 50),
+      { id: 50, date: '2024-02-29', rpgAchievements: true },
+    );
+    assert.ok(
+      result.themesWithStatus.every((row) => row.creationDate === '2026-01-01'),
+    );
+    assert.ok(result.nominationData.every((row) => row.date === '2026-01-01'));
   });
 
   void it('closes resources acquired before a setup failure', async () => {

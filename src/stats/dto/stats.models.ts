@@ -74,7 +74,7 @@ export class UserNominationSuccessStat {
   @Field(() => Float)
   earnedPoints!: number;
 
-  @Field(() => Int)
+  @Field(() => Float)
   successRate!: number;
 
   @Field(() => Int)
@@ -86,6 +86,9 @@ export class UserNominationSuccessStat {
 
 @ObjectType()
 export class ThemeCategoryCountStat {
+  @Field(() => Int)
+  themeId!: number;
+
   @Field()
   title!: string;
 

@@ -1,4 +1,5 @@
 import { Args, Int, Query, Resolver } from '@nestjs/graphql';
+import { PositiveIntPipe } from '../validation/query-arguments.js';
 import { Completion } from './dto/completion.model.js';
 import { CompletionsService } from './completions.service.js';
 
@@ -8,7 +9,7 @@ export class CompletionsResolver {
 
   @Query(() => [Completion], { name: 'completionsByUserId' })
   async getCompletionsByUserId(
-    @Args('userId', { type: () => Int }) userId: number,
+    @Args('userId', { type: () => Int }, PositiveIntPipe) userId: number,
   ): Promise<Completion[]> {
     return this.completionsService.findByUserId(userId);
   }

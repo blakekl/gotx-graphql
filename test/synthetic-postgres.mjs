@@ -124,11 +124,11 @@ export async function startTestContext({ initialize = async () => {} } = {}) {
     const database = app.get(DatabaseService);
     await database.query('SELECT 1');
     applicationPool = database.pool;
-    const request = async (query) => {
+    const request = async (query, variables = {}) => {
       const response = await app.inject({
         method: 'POST',
         url: '/graphql',
-        payload: { query },
+        payload: { query, variables },
       });
       return { status: response.statusCode, ...response.json() };
     };

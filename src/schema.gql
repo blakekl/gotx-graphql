@@ -137,6 +137,7 @@ type Query {
   shortestMonthsByAvgTimeToBeat: [ThemeTimeToBeatStat!]!
   themeDetailWithCategories(themeId: Int!): [ThemeDetailEntry!]!
   themeWinners(themeId: Int!): [ThemeWinner!]!
+  themeYearCategories(themeId: Int!): [ThemeYearCategory!]!
   themesWithStatus: [ThemeWithStatus!]!
   topNominationWinsByUser: [UserWinStat!]!
   totalNomsBeforeWinByGame: [GameNominationCountStat!]!
@@ -147,6 +148,7 @@ type Query {
 type ThemeCategoryCountStat {
   category: String!
   count: Int!
+  themeId: Int!
   title: String!
 }
 
@@ -207,6 +209,13 @@ type ThemeWithStatus {
   winnerCount: Int!
 }
 
+type ThemeYearCategory {
+  key: String!
+  label: String!
+  maxYear: Int
+  minYear: Int
+}
+
 type User {
   earnedPoints: Float
   id: Int!
@@ -224,7 +233,7 @@ type UserNominationSuccessStat {
   name: String!
   nominations: Int!
   rank: Int!
-  successRate: Int!
+  successRate: Float!
   wins: Int!
 }
 
