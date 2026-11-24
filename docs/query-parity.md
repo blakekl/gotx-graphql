@@ -63,7 +63,8 @@ that suite's test names (substring filters work with Node's test runner).
 | getThemeWinners                  | themeWinners(themeId:Int!)                            | ThemeWinner[]                  | A / historical and modern categories                            |
 
 Additive roots without FE exports: `themeYearCategories(themeId:Int!)` returns
-`[ThemeYearCategory!]!`; `healthCheck` retains the existing connectivity response.
+`[ThemeYearCategory!]!`; `healthCheck: String!` retains connectivity checking with
+the generic safe string `ok` or `unavailable` (no database timestamp/details).
 The explicit root inventory must match introspection; it is not a fixed count.
 
 ## Preserved counting and selection

@@ -18,14 +18,18 @@ This service exposes read-only GraphQL queries for browsing games, users, nomina
 ## Prerequisites
 
 - **Node.js** (v22+)
-- **PostgreSQL 16** with the `public` schema populated (`games`, `users`, `nominations`, `completions`, `themes`, `streaks`)
+- **PostgreSQL 16** with the `public` schema populated (`games`, `users`, `nominations`, `completions`, `themes`)
 - **npm** (or your preferred Node package manager)
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` and edit the fields to match your local database setup.
-
-> **Tip:** Because this API is read-only, connect with a dedicated read-only PostgreSQL role (`SELECT` privileges only) for defense in depth.
+For deliberate local development, create `.env.local` with the required DB settings,
+explicit `DB_TLS_MODE` and approved credentials. Production ignores env files.
+See [database lifecycle and operator runbook](docs/database-lifecycle.md) for all
+validated settings, bounds, health routes and the mandatory effective-privilege
+audit. A dedicated SELECT-only login is the permission boundary; a read-only
+transaction default alone is not sufficient. Live TLS/network/CA approval and
+production provisioning remain separate deployment gates.
 
 ## Installation & Running
 

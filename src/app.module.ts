@@ -11,16 +11,15 @@ import { NominationsModule } from './nominations/nominations.module.js';
 import { CompletionsModule } from './completions/completions.module.js';
 import { ThemesModule } from './themes/themes.module.js';
 import { StatsModule } from './stats/stats.module.js';
+import { HealthController } from './health.controller.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       // Contract tests supply isolated synthetic configuration, never local secrets.
-      ignoreEnvFile: process.env.NODE_ENV === 'test',
-      envFilePath: process.env.NODE_ENV
-        ? `.env.${process.env.NODE_ENV}`
-        : '.env',
+      ignoreEnvFile: process.env.NODE_ENV !== 'local',
+      envFilePath: '.env.local',
     }),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -37,5 +36,6 @@ import { StatsModule } from './stats/stats.module.js';
     StatsModule,
   ],
   providers: [AppResolver],
+  controllers: [HealthController],
 })
 export class AppModule {}

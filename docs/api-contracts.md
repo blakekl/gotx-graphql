@@ -8,7 +8,7 @@ No running API, `.env` or restored database is needed.
     npm run lint
     npm run test:e2e
     npm run build
-    ./node_modules/.bin/tsc --noEmit --incremental false -p tsconfig.json
+    npm exec --no -- tsc --noEmit --incremental false -p tsconfig.json
     git diff --check
 
 Unit tests isolate mapper behavior. The e2e command builds once, then uses Node's
@@ -37,7 +37,14 @@ The lifecycle helper uses `--pull=never --rm`, tmpfs storage, test-only trust-au
 credentials and an ephemeral loopback port (never host 5432). Teardown ends the
 application and fixture pools and stops only the acquired container ID. Focused
 setup/assertion failure tests inspect actual pool shutdown and container absence;
-HTTP injection never opens a listener. This does not guarantee cleanup after
+ordinary HTTP injection never opens a listener. `test/lifecycle.mjs` and
+`test/database-lifecycle.mjs` additionally exercise actual pool saturation,
+statement/client timeout ordering, fixture-owned role outage/recovery and
+read-only privileges; a compiled production child owns an ephemeral listener
+for readiness/SIGTERM/cleanup checks. A synthetic `.env.production` trap verifies
+production does not fill missing required settings from env files. See the
+[lifecycle/operator runbook](database-lifecycle.md) for configuration, least
+privilege audits and deployment limitations. This does not guarantee cleanup after
 SIGKILL or a host/Docker failure. CI additionally cleans containers carrying its
 unique run label, provisions the pinned image, and uses synthetic data only.
 
