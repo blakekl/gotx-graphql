@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { expect, it } from 'vitest';
+import { it } from 'vitest';
 
 it('runs the focused compiled Fastify/PostgreSQL contracts', () => {
-  // Use the native compiler's emitted decorator metadata, as in deployment.
-  execFileSync('npm', ['run', 'build'], { stdio: 'pipe' });
-  const output = execFileSync(
+  // Inherit output so CI retains native assertion diagnostics even on failure.
+  // execFileSync still throws on a nonzero exit; no assertions are bypassed.
+  execFileSync('npm', ['run', 'build'], { stdio: 'inherit' });
+  execFileSync(
     process.execPath,
     [
       '--test',
@@ -13,12 +14,6 @@ it('runs the focused compiled Fastify/PostgreSQL contracts', () => {
       'test/lifecycle.mjs',
       'test/database-lifecycle.mjs',
     ],
-    {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 120000,
-    },
+    { stdio: 'inherit', timeout: 120000 },
   );
-  expect(output).toMatch(/# fail 0/);
-  console.log(output);
 }, 150000);

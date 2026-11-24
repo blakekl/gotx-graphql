@@ -8,9 +8,13 @@ is confirmed; actual network attachment, DNS, reverse proxy HTTPS and PostgreSQL
 TLS/CA policy still require administrator approval. No SQL here has been run on
 an existing/production database. Private Docker networking is not itself TLS proof.
 
-Production uses environment variables only: `.env` and `.env.production` are
-ignored. Only `NODE_ENV=local` deliberately loads `.env.local`; tests supply
-synthetic configuration. Never print environment values or put passwords in CLI
+Production and the default (unset `NODE_ENV`) load `.env` from the working
+directory. `NODE_ENV=local` loads only `.env.local`; `NODE_ENV=test` ignores all
+env files. Injected process variables take precedence, including blank values
+(which still fail required-setting validation). `.env.production` is not loaded.
+Tests use owned temporary directories and synthetic configuration only; they do
+not read real env files or require a private `.local` directory.
+Never print environment values or put passwords in CLI
 arguments, reports, source control or GraphQL payloads. Startup failures emit a
 generic diagnostic, not the driver/configuration exception.
 

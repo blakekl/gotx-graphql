@@ -24,7 +24,9 @@ This service exposes read-only GraphQL queries for browsing games, users, nomina
 ## Environment Variables
 
 For deliberate local development, create `.env.local` with the required DB settings,
-explicit `DB_TLS_MODE` and approved credentials. Production ignores env files.
+explicit `DB_TLS_MODE` and approved credentials (`NODE_ENV=local`). Production and
+an unset `NODE_ENV` load `.env` from the working directory; injected process
+variables take precedence. `NODE_ENV=test` ignores all env files.
 See [database lifecycle and operator runbook](docs/database-lifecycle.md) for all
 validated settings, bounds, health routes and the mandatory effective-privilege
 audit. A dedicated SELECT-only login is the permission boundary; a read-only

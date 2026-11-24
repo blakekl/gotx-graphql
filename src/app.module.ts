@@ -17,9 +17,9 @@ import { HealthController } from './health.controller.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // Contract tests supply isolated synthetic configuration, never local secrets.
-      ignoreEnvFile: process.env.NODE_ENV !== 'local',
-      envFilePath: '.env.local',
+      // Tests never load local secrets; injected process settings always win.
+      ignoreEnvFile: process.env.NODE_ENV === 'test',
+      envFilePath: process.env.NODE_ENV === 'local' ? '.env.local' : '.env',
     }),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,

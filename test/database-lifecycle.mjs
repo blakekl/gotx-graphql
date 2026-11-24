@@ -5,8 +5,133 @@ import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, copyFile, symlink } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+void it('loads compiled configuration from the selected env file with injected precedence and test isolation', async (t) => {
+  const context = await startTestContext();
+  const entrypoint = resolve('dist/main.js');
+  try {
+    await context.app.close();
+    for (const mode of [undefined, 'production', 'local', 'test']) {
+      await t.test(mode ?? 'default', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'configuration-env-'));
+        try {
+          const selected = mode === 'local' ? '.env.local' : '.env';
+          const fileValues = { ...context.values };
+          const serialize = (values) =>
+            Object.entries(values)
+              .map(([key, value]) => `${key}=${value}`)
+              .join('\n') + '\n';
+          const baseEnv = {
+            PATH: process.env.PATH,
+            ...(mode === undefined ? {} : { NODE_ENV: mode }),
+            HOST: '127.0.0.1',
+          };
+          const rejected = (env) =>
+            assert.throws(
+              () =>
+                execFileSync(process.execPath, [entrypoint], {
+                  cwd: directory,
+                  env,
+                  timeout: 10000,
+                  stdio: 'pipe',
+                }),
+              (error) =>
+                error.status === 1 &&
+                /Invalid configuration: DB_PASSWORD/.test(
+                  error.stderr.toString(),
+                ),
+            );
+          const healthy = async (values) => {
+            const port = await unusedPort();
+            const child = spawn(process.execPath, [entrypoint], {
+              cwd: directory,
+              env: { ...baseEnv, ...values, PORT: String(port) },
+              timeout: 10000,
+              stdio: ['ignore', 'pipe', 'pipe'],
+            });
+            let output = '';
+            child.stdout.on('data', (data) => {
+              output += data;
+            });
+            child.stderr.on('data', (data) => {
+              output += data;
+            });
+            const exited = once(child, 'exit');
+            try {
+              let ready = false;
+              for (let attempt = 0; attempt < 100; attempt++) {
+                assert.equal(child.exitCode, null, output);
+                try {
+                  ready =
+                    (await fetch(`http://127.0.0.1:${port}/health/ready`))
+                      .status === 200;
+                } catch {}
+                if (ready) break;
+                await delay(50);
+              }
+              assert.equal(ready, true, output);
+            } finally {
+              if (child.exitCode === null && child.signalCode === null)
+                child.kill('SIGTERM');
+              await exited;
+            }
+            assert.deepEqual(
+              [child.exitCode, child.signalCode],
+              [null, 'SIGTERM'],
+              output,
+            );
+          };
+          // Conflicting unselected files must never supply required values.
+          for (const name of [
+            '.env',
+            '.env.local',
+            '.env.production',
+            '.env.test',
+          ]) {
+            await writeFile(
+              join(directory, name),
+              serialize({ ...fileValues, DB_PORT: 'invalid' }),
+            );
+          }
+          await writeFile(join(directory, selected), serialize(fileValues));
+          if (mode === 'test') {
+            // Both supported file names contain complete config, yet neither can fill a missing key.
+            await writeFile(
+              join(directory, '.env.local'),
+              serialize(fileValues),
+            );
+            const { DB_PASSWORD: _password, ...missingPassword } =
+              context.values;
+            rejected({ ...baseEnv, ...missingPassword });
+            await healthy(context.values);
+          } else {
+            await healthy({});
+            const { DB_PASSWORD: _password, ...missingPassword } = fileValues;
+            await writeFile(
+              join(directory, selected),
+              serialize(missingPassword),
+            );
+            rejected(baseEnv);
+            // Invalid file values must not replace explicitly injected settings.
+            await writeFile(
+              join(directory, selected),
+              serialize({ ...fileValues, DB_PORT: 'invalid', DB_PASSWORD: '' }),
+            );
+            await healthy(context.values);
+          }
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      });
+    }
+  } finally {
+    await context.close();
+    assert.equal(remainingContainer(context.containerId), '');
+  }
+});
 
 void it('enforces SELECT-only privileges, server bounds, outage recovery and shutdown admission', async () => {
   const context = await startTestContext();
@@ -186,7 +311,12 @@ async function unusedPort() {
 void it('runs compiled production through readiness, SIGTERM and partial startup failure', async () => {
   const context = await startTestContext();
   let child;
+  let directory;
   try {
+    directory = await mkdtemp(join(tmpdir(), 'production-env-fixture-'));
+    // Exercise the repository's exact package script without reading real env files.
+    await copyFile('package.json', join(directory, 'package.json'));
+    await symlink(resolve('dist'), join(directory, 'dist'), 'dir');
     await context.app.close();
     const port = await unusedPort();
     const env = {
@@ -198,7 +328,8 @@ void it('runs compiled production through readiness, SIGTERM and partial startup
       SHUTDOWN_TIMEOUT_MS: '2000',
     };
     let output = '';
-    child = spawn(process.execPath, ['dist/main.js'], {
+    child = spawn(process.execPath, [resolve('dist/main.js')], {
+      cwd: directory,
       env,
       timeout: 10000,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -256,6 +387,7 @@ void it('runs compiled production through readiness, SIGTERM and partial startup
     // Actual production package script, invalid configuration: safe failure, correct emitted path.
     try {
       execFileSync('npm', ['run', 'start:prod'], {
+        cwd: directory,
         env: { ...env, DB_PASSWORD: '' },
         encoding: 'utf8',
         timeout: 10000,
@@ -273,7 +405,8 @@ void it('runs compiled production through readiness, SIGTERM and partial startup
     // Actionable configuration key only; never raw CA contents/driver messages.
     assert.throws(
       () =>
-        execFileSync(process.execPath, ['dist/main.js'], {
+        execFileSync(process.execPath, [resolve('dist/main.js')], {
+          cwd: directory,
           env: {
             ...env,
             DB_TLS_MODE: 'verify',
@@ -289,34 +422,30 @@ void it('runs compiled production through readiness, SIGTERM and partial startup
     );
     // Synthetic env-file trap in an owned cwd: a missing required password may
     // not be filled from .env.production. Never read any real local env file.
-    const directory = await mkdtemp(resolve('.local/production-env-fixture-'));
-    try {
-      await writeFile(
-        join(directory, '.env.production'),
-        'DB_PASSWORD=synthetic-file-only\n',
-      );
-      const { DB_PASSWORD: _password, ...missingPassword } = env;
-      assert.throws(
-        () =>
-          execFileSync(process.execPath, [resolve('dist/main.js')], {
-            cwd: directory,
-            env: missingPassword,
-            timeout: 10000,
-            stdio: 'pipe',
-          }),
-        (error) =>
-          error.status === 1 &&
-          /Service startup failed/.test(error.stderr.toString()),
-      );
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    await writeFile(
+      join(directory, '.env.production'),
+      'DB_PASSWORD=synthetic-file-only\n',
+    );
+    const { DB_PASSWORD: _password, ...missingPassword } = env;
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, [resolve('dist/main.js')], {
+          cwd: directory,
+          env: missingPassword,
+          timeout: 10000,
+          stdio: 'pipe',
+        }),
+      (error) =>
+        error.status === 1 &&
+        /Service startup failed/.test(error.stderr.toString()),
+    );
     // EADDRINUSE after pool initialization: owned blocker preserved, app cleaned up.
     const blocker = createServer();
     blocker.listen(port, '127.0.0.1');
     await once(blocker, 'listening');
     try {
-      const failed = spawn(process.execPath, ['dist/main.js'], {
+      const failed = spawn(process.execPath, [resolve('dist/main.js')], {
+        cwd: directory,
         env,
         timeout: 6000,
         stdio: 'ignore',
@@ -334,11 +463,18 @@ void it('runs compiled production through readiness, SIGTERM and partial startup
       await new Promise((resolve) => blocker.close(resolve));
     }
   } finally {
-    if (child && child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGTERM');
-      await once(child, 'exit');
+    try {
+      if (child && child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGTERM');
+        await once(child, 'exit');
+      }
+    } finally {
+      try {
+        await context.close();
+        assert.equal(remainingContainer(context.containerId), '');
+      } finally {
+        if (directory) await rm(directory, { recursive: true, force: true });
+      }
     }
-    await context.close();
-    assert.equal(remainingContainer(context.containerId), '');
   }
 });
