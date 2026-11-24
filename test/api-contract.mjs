@@ -117,7 +117,7 @@ const roots = {
   ],
   healthCheck: [
     'healthCheck',
-    /^Database connected successfully! Server time: /,
+    /^ok$/,
   ],
   longestMonthsByAvgTimeToBeat: [
     'longestMonthsByAvgTimeToBeat { theme value }',
@@ -432,6 +432,11 @@ await describe('Fastify/PostgreSQL public API', { concurrency: false }, () => {
         const result = await context.request(`{ ${selection} }`);
         // Assert
         assert.equal(result.status, 200);
+        if (name === 'healthCheck') {
+          assert.equal(result.errors, undefined);
+          assert.deepEqual(result.data, { healthCheck: 'unavailable' });
+          return;
+        }
         assert.equal(result.errors.length, 1);
         assert.deepEqual(result.errors[0].path, [name]);
         assert.equal(result.errors[0].extensions.code, 'INTERNAL_SERVER_ERROR');

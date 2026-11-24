@@ -32,7 +32,10 @@ const schema = `
 
 // One owned database and compiled application per suite, no environment DB fallback.
 // initialize is an optional setup hook; failures after acquisition use the same cleanup.
-export async function startTestContext({ initialize = async () => {} } = {}) {
+export async function startTestContext({
+  initialize = async () => {},
+  configuration = {},
+} = {}) {
   const name = `api-contract-${randomUUID()}`;
   let containerId;
   let pool;
@@ -103,19 +106,35 @@ export async function startTestContext({ initialize = async () => {} } = {}) {
     }
     await initialize({ pool, containerId });
     await pool.query(schema);
+    // Fixture admin owns reset/seed; the actual application has only five SELECTs.
+    await pool.query(`
+      REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+      REVOKE TEMPORARY ON DATABASE api_test FROM PUBLIC;
+      CREATE ROLE api_reader LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+      GRANT CONNECT ON DATABASE api_test TO api_reader;
+      GRANT USAGE ON SCHEMA public TO api_reader;
+      GRANT SELECT ON themes,games,users,nominations,completions TO api_reader;
+      ALTER ROLE api_reader SET default_transaction_read_only = on;
+    `);
     // Must precede importing AppModule: never load a local env file.
     process.env.NODE_ENV = 'test';
     const { AppModule } = await import('../dist/app.module.js');
     const values = {
       DB_HOST: config.host,
-      DB_PORT: port,
-      DB_USER: config.user,
+      DB_PORT: String(port),
+      DB_USER: 'api_reader',
       DB_NAME: config.database,
-      DB_PASSWORD: '',
+      DB_PASSWORD: 'synthetic-trust-only',
+      DB_TLS_MODE: 'disabled',
+      DB_POOL_MAX: '1',
+      DB_CONNECT_TIMEOUT_MS: '200',
+      DB_STATEMENT_TIMEOUT_MS: '300',
+      DB_QUERY_TIMEOUT_MS: '600',
+      ...configuration,
     };
     module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ConfigService)
-      .useValue({ get: (key) => values[key] })
+      .useValue(new ConfigService(values))
       .compile();
     app = module.createNestApplication(new FastifyAdapter(), { logger: false });
     await app.init();
@@ -139,6 +158,7 @@ export async function startTestContext({ initialize = async () => {} } = {}) {
       pool,
       applicationPool,
       containerId,
+      values,
       close,
       request,
       reset: () =>

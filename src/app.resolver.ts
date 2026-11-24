@@ -7,7 +7,6 @@ export class AppResolver {
 
   @Query(() => String)
   async healthCheck(): Promise<string> {
-    const result = await this.databaseService.query('SELECT NOW()');
-    return `Database connected successfully! Server time: ${result.rows[0].now}`;
+    return (await this.databaseService.ready()) ? 'ok' : 'unavailable';
   }
 }

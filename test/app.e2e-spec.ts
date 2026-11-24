@@ -6,7 +6,13 @@ it('runs the focused compiled Fastify/PostgreSQL contracts', () => {
   execFileSync('npm', ['run', 'build'], { stdio: 'pipe' });
   const output = execFileSync(
     process.execPath,
-    ['--test', 'test/api-contract.mjs'],
+    [
+      '--test',
+      '--test-concurrency=1',
+      'test/api-contract.mjs',
+      'test/lifecycle.mjs',
+      'test/database-lifecycle.mjs',
+    ],
     {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
